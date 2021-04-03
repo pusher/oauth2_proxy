@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"reflect"
 	"time"
 
@@ -232,4 +233,18 @@ func (p *OIDCProvider) createSession(ctx context.Context, token *oauth2.Token, r
 	ss.ExpiresOn = &token.Expiry
 
 	return ss, nil
+}
+
+func (p *OIDCProvider) GetLoginURL(redirectURI, state string) string {
+	s := makeLoginURL(p.ProviderData, redirectURI, state, p.makeClaims())
+	return s.String()
+}
+
+func (p *OIDCProvider) makeClaims() url.Values {
+	idTokenClaimsParam := url.Values{}
+	if p.ClaimsParameter == "" {
+		return idTokenClaimsParam
+	}
+	idTokenClaimsParam.Add("claims", p.ClaimsParameter)
+	return idTokenClaimsParam
 }
