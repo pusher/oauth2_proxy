@@ -96,6 +96,7 @@ type Options struct {
 	ApprovalPrompt                     string   `flag:"approval-prompt" cfg:"approval_prompt"` // Deprecated by OIDC 1.0
 	UserIDClaim                        string   `flag:"user-id-claim" cfg:"user_id_claim"`
 	AllowedGroups                      []string `flag:"allowed-group" cfg:"allowed_groups"`
+	AllowedRoles                       []string `flag:"allowed-role" cfg:"allowed_roles"`
 
 	SignatureKey    string `flag:"signature-key" cfg:"signature_key"`
 	AcrValues       string `flag:"acr-values" cfg:"acr_values"`
@@ -239,6 +240,7 @@ func NewFlagSet() *pflag.FlagSet {
 
 	flagSet.String("user-id-claim", providers.OIDCEmailClaim, "(DEPRECATED for `oidc-email-claim`) which claim contains the user ID")
 	flagSet.StringSlice("allowed-group", []string{}, "restrict logins to members of this group (may be given multiple times)")
+	flagSet.StringSlice("allowed-role", []string{}, "(keycloak-oidc) restrict logins to members of these roles (may be given multiple times)")
 
 	flagSet.AddFlagSet(cookieFlagSet())
 	flagSet.AddFlagSet(loggingFlagSet())

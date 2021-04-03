@@ -268,6 +268,11 @@ func parseProviderInfo(o *options.Options, msgs []string) []string {
 		if len(o.KeycloakGroups) > 0 {
 			p.SetAllowedGroups(o.KeycloakGroups)
 		}
+	case *providers.KeycloakOIDCProvider:
+		if p.Verifier == nil {
+			msgs = append(msgs, "keycloak-oidc provider requires an oidc issuer URL")
+		}
+		p.AddAllowedRoles(o.AllowedRoles)
 	case *providers.GoogleProvider:
 		if o.GoogleServiceAccountJSON != "" {
 			file, err := os.Open(o.GoogleServiceAccountJSON)
@@ -286,10 +291,6 @@ func parseProviderInfo(o *options.Options, msgs []string) []string {
 	case *providers.BitbucketProvider:
 		p.SetTeam(o.BitbucketTeam)
 		p.SetRepository(o.BitbucketRepository)
-	case *providers.OIDCProvider:
-		if p.Verifier == nil {
-			msgs = append(msgs, "oidc provider requires an oidc issuer URL")
-		}
 	case *providers.GitLabProvider:
 		p.Groups = o.GitLabGroup
 		err := p.AddProjects(o.GitlabProjects)
@@ -344,6 +345,10 @@ func parseProviderInfo(o *options.Options, msgs []string) []string {
 			} else {
 				p.JWTKey = signKey
 			}
+		}
+	case *providers.OIDCProvider:
+		if p.Verifier == nil {
+			msgs = append(msgs, "oidc provider requires an oidc issuer URL")
 		}
 	}
 	return msgs
