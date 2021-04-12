@@ -15,64 +15,62 @@ import (
 )
 
 var _ = Describe("Proxy Suite", func() {
-	var upstreamServer http.Handler
-
-	BeforeEach(func() {
-		sigData := &options.SignatureData{Hash: crypto.SHA256, Key: "secret"}
-
-		errorHandler := func(rw http.ResponseWriter, _ *http.Request, _ error) {
-			rw.WriteHeader(502)
-			rw.Write([]byte("Proxy Error"))
-		}
-
-		ok := http.StatusOK
-
-		upstreams := options.Upstreams{
-			ProxyRawPath: false,
-			Configs: []options.Upstream{
-				{
-					ID:   "http-backend",
-					Path: "/http/",
-					URI:  serverAddr,
-				},
-				{
-					ID:   "file-backend",
-					Path: "/files/",
-					URI:  fmt.Sprintf("file:///%s", filesDir),
-				},
-				{
-					ID:         "static-backend",
-					Path:       "/static/",
-					Static:     true,
-					StaticCode: &ok,
-				},
-				{
-					ID:   "bad-http-backend",
-					Path: "/bad-http/",
-					URI:  "http://::1",
-				},
-				{
-					ID:         "single-path-backend",
-					Path:       "/single-path",
-					Static:     true,
-					StaticCode: &ok,
-				},
-			},
-		}
-
-		var err error
-		upstreamServer, err = NewProxy(upstreams, sigData, errorHandler)
-		Expect(err).ToNot(HaveOccurred())
-	})
-
 	type proxyTableInput struct {
-		target   string
-		response testHTTPResponse
-		upstream string
+		target    string
+		response  testHTTPResponse
+		upstream  string
+		upstreams options.Upstreams
 	}
 
 	DescribeTable("Proxy ServeHTTP",
 		func(in *proxyTableInput) {
+			sigData := &options.SignatureData{Hash: crypto.SHA256, Key: "secret"}
+
+			errorHandler := func(rw http.ResponseWriter, _ *http.Request, _ error) {
+				rw.WriteHeader(502)
+				rw.Write([]byte("Proxy Error"))
+			}
+
+			ok := http.StatusOK
+
+			// Allows for specifying settings and even individual upstreams for specific tests and uses the default upstreams/configs otherwise
+			upstreams := in.upstreams
+			if len(in.upstreams.Configs) == 0 {
+				upstreams.Configs = []options.Upstream{
+					{
+						ID:   "http-backend",
+						Path: "/http/",
+						URI:  serverAddr,
+					},
+					{
+						ID:   "file-backend",
+						Path: "/files/",
+						URI:  fmt.Sprintf("file:///%s", filesDir),
+					},
+					{
+						ID:         "static-backend",
+						Path:       "/static/",
+						Static:     true,
+						StaticCode: &ok,
+					},
+					{
+						ID:   "bad-http-backend",
+						Path: "/bad-http/",
+						URI:  "http://::1",
+					},
+					{
+						ID:         "single-path-backend",
+						Path:       "/single-path",
+						Static:     true,
+						StaticCode: &ok,
+					},
+				}
+			}
+
+			var err error
+			upstreamServer, err := NewProxy(upstreams, sigData, errorHandler)
+			Expect(err).ToNot(HaveOccurred())
+
 			req := middlewareapi.AddRequestScope(
 				httptest.NewRequest("", in.target, nil),
 				&middlewareapi.RequestScope{},
@@ -196,6 +194,18 @@ var _ = Describe("Proxy Suite", func() {
 					contentType: {htmlPlainUTF8},
 				},
 				raw: "<a href=\"http://example.localhost/\">Moved Permanently</a>.\n\n",
+			},
+		}),
+		Entry("with a request to a path containing an escaped '/' in its name and enabled raw path proxy", &proxyTableInput{
+			upstreams: options.Upstreams{ProxyRawPath: true},
+			target:    "http://example.localhost/%2F/",
+			response: testHTTPResponse{
+				code: 404,
+				header: map[string][]string{
+					"X-Content-Type-Options": {"nosniff"},
+					contentType:              {textPlainUTF8},
+				},
+				raw: "404 page not found\n",
 			},
 		}),
 	)
