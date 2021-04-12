@@ -20,7 +20,7 @@ func NewProxy(upstreams options.Upstreams, sigData *options.SignatureData, error
 		serveMux: http.NewServeMux(),
 	}
 
-	for _, upstream := range upstreams {
+	for _, upstream := range upstreams.Configs {
 		if upstream.Static {
 			m.registerStaticResponseHandler(upstream)
 			continue

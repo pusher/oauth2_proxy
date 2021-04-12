@@ -28,32 +28,34 @@ var _ = Describe("Proxy Suite", func() {
 		ok := http.StatusOK
 
 		upstreams := options.Upstreams{
-			{
-				ID:   "http-backend",
-				Path: "/http/",
-				URI:  serverAddr,
-			},
-			{
-				ID:   "file-backend",
-				Path: "/files/",
-				URI:  fmt.Sprintf("file:///%s", filesDir),
-			},
-			{
-				ID:         "static-backend",
-				Path:       "/static/",
-				Static:     true,
-				StaticCode: &ok,
-			},
-			{
-				ID:   "bad-http-backend",
-				Path: "/bad-http/",
-				URI:  "http://::1",
-			},
-			{
-				ID:         "single-path-backend",
-				Path:       "/single-path",
-				Static:     true,
-				StaticCode: &ok,
+			Configs: []options.Upstream{
+				{
+					ID:   "http-backend",
+					Path: "/http/",
+					URI:  serverAddr,
+				},
+				{
+					ID:   "file-backend",
+					Path: "/files/",
+					URI:  fmt.Sprintf("file:///%s", filesDir),
+				},
+				{
+					ID:         "static-backend",
+					Path:       "/static/",
+					Static:     true,
+					StaticCode: &ok,
+				},
+				{
+					ID:   "bad-http-backend",
+					Path: "/bad-http/",
+					URI:  "http://::1",
+				},
+				{
+					ID:         "single-path-backend",
+					Path:       "/single-path",
+					Static:     true,
+					StaticCode: &ok,
+				},
 			},
 		}
 

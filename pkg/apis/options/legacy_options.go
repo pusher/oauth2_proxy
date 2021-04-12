@@ -113,8 +113,8 @@ func legacyUpstreamsFlagSet() *pflag.FlagSet {
 	return flagSet
 }
 
-func (l *LegacyUpstreams) convert() (Upstreams, error) {
-	upstreams := Upstreams{}
+func (l *LegacyUpstreams) convert() ([]Upstream, error) {
+	upstreams := []Upstream{}
 
 	for _, upstreamString := range l.Upstreams {
 		u, err := url.Parse(upstreamString)
