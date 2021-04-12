@@ -28,6 +28,7 @@ var _ = Describe("Proxy Suite", func() {
 		ok := http.StatusOK
 
 		upstreams := options.Upstreams{
+			ProxyRawPath: false,
 			Configs: []options.Upstream{
 				{
 					ID:   "http-backend",
@@ -184,6 +185,17 @@ var _ = Describe("Proxy Suite", func() {
 					contentType:              {textPlainUTF8},
 				},
 				raw: "404 page not found\n",
+			},
+		}),
+		Entry("with a request to a path containing an escaped '/' in its name", &proxyTableInput{
+			target: "http://example.localhost/%2F/",
+			response: testHTTPResponse{
+				code: 301, // Default http mux will rewrite this with an 301
+				header: map[string][]string{
+					"Location":  {"http://example.localhost/"},
+					contentType: {htmlPlainUTF8},
+				},
+				raw: "<a href=\"http://example.localhost/\">Moved Permanently</a>.\n\n",
 			},
 		}),
 	)

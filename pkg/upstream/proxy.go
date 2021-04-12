@@ -17,7 +17,8 @@ type ProxyErrorHandler func(http.ResponseWriter, *http.Request, error)
 // multiple upstreams.
 func NewProxy(upstreams options.Upstreams, sigData *options.SignatureData, errorHandler ProxyErrorHandler) (http.Handler, error) {
 	m := &multiUpstreamProxy{
-		serveMux: http.NewServeMux(),
+		serveMux:     http.NewServeMux(),
+		proxyRawPath: upstreams.ProxyRawPath,
 	}
 
 	for _, upstream := range upstreams.Configs {
@@ -45,11 +46,15 @@ func NewProxy(upstreams options.Upstreams, sigData *options.SignatureData, error
 // multiUpstreamProxy will serve requests directed to multiple upstream servers
 // registered in the serverMux.
 type multiUpstreamProxy struct {
-	serveMux *http.ServeMux
+	serveMux     *http.ServeMux
+	proxyRawPath bool
 }
 
 // ServerHTTP handles HTTP requests.
 func (m *multiUpstreamProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	if m.proxyRawPath && req.URL.RawPath != "" {
+		req.URL.Path = req.URL.EscapedPath()
+	}
 	m.serveMux.ServeHTTP(rw, req)
 }
 
