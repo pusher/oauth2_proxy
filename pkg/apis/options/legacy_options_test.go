@@ -26,35 +26,37 @@ var _ = Describe("Legacy Options", func() {
 
 			truth := true
 			staticCode := 204
-			opts.UpstreamServers = []Upstream{
-				{
-					ID:                    "/baz",
-					Path:                  "/baz",
-					URI:                   "http://foo.bar/baz",
-					FlushInterval:         &flushInterval,
-					InsecureSkipTLSVerify: true,
-					PassHostHeader:        &truth,
-					ProxyWebSockets:       &truth,
-				},
-				{
-					ID:                    "/bar",
-					Path:                  "/bar",
-					URI:                   "file:///var/lib/website",
-					FlushInterval:         &flushInterval,
-					InsecureSkipTLSVerify: true,
-					PassHostHeader:        &truth,
-					ProxyWebSockets:       &truth,
-				},
-				{
-					ID:                    "static://204",
-					Path:                  "/",
-					URI:                   "",
-					Static:                true,
-					StaticCode:            &staticCode,
-					FlushInterval:         nil,
-					InsecureSkipTLSVerify: false,
-					PassHostHeader:        nil,
-					ProxyWebSockets:       nil,
+			opts.UpstreamServers = Upstreams{
+				Configs: []Upstream{
+					{
+						ID:                    "/baz",
+						Path:                  "/baz",
+						URI:                   "http://foo.bar/baz",
+						FlushInterval:         &flushInterval,
+						InsecureSkipTLSVerify: true,
+						PassHostHeader:        &truth,
+						ProxyWebSockets:       &truth,
+					},
+					{
+						ID:                    "/bar",
+						Path:                  "/bar",
+						URI:                   "file:///var/lib/website",
+						FlushInterval:         &flushInterval,
+						InsecureSkipTLSVerify: true,
+						PassHostHeader:        &truth,
+						ProxyWebSockets:       &truth,
+					},
+					{
+						ID:                    "static://204",
+						Path:                  "/",
+						URI:                   "",
+						Static:                true,
+						StaticCode:            &staticCode,
+						FlushInterval:         nil,
+						InsecureSkipTLSVerify: false,
+						PassHostHeader:        nil,
+						ProxyWebSockets:       nil,
+					},
 				},
 			}
 
@@ -123,7 +125,7 @@ var _ = Describe("Legacy Options", func() {
 	Context("Legacy Upstreams", func() {
 		type convertUpstreamsTableInput struct {
 			upstreamStrings   []string
-			expectedUpstreams []Upstream
+			expectedUpstreams Upstreams
 			errMsg            string
 		}
 
@@ -218,51 +220,51 @@ var _ = Describe("Legacy Options", func() {
 					Expect(err).ToNot(HaveOccurred())
 				}
 
-				Expect(upstreams).To(ConsistOf(in.expectedUpstreams))
+				Expect(upstreams).To(Equal(in.expectedUpstreams))
 			},
 			Entry("with no upstreams", &convertUpstreamsTableInput{
 				upstreamStrings:   []string{},
-				expectedUpstreams: []Upstream{},
+				expectedUpstreams: Upstreams{},
 				errMsg:            "",
 			}),
 			Entry("with a valid HTTP upstream", &convertUpstreamsTableInput{
 				upstreamStrings:   []string{validHTTP},
-				expectedUpstreams: []Upstream{validHTTPUpstream},
+				expectedUpstreams: Upstreams{Configs: []Upstream{validHTTPUpstream}},
 				errMsg:            "",
 			}),
 			Entry("with a HTTP upstream with an empty path", &convertUpstreamsTableInput{
 				upstreamStrings:   []string{emptyPathHTTP},
-				expectedUpstreams: []Upstream{emptyPathHTTPUpstream},
+				expectedUpstreams: Upstreams{Configs: []Upstream{emptyPathHTTPUpstream}},
 				errMsg:            "",
 			}),
 			Entry("with a valid File upstream with a fragment", &convertUpstreamsTableInput{
 				upstreamStrings:   []string{validFileWithFragment},
-				expectedUpstreams: []Upstream{validFileWithFragmentUpstream},
+				expectedUpstreams: Upstreams{Configs: []Upstream{validFileWithFragmentUpstream}},
 				errMsg:            "",
 			}),
 			Entry("with a valid static upstream", &convertUpstreamsTableInput{
 				upstreamStrings:   []string{validStatic},
-				expectedUpstreams: []Upstream{validStaticUpstream},
+				expectedUpstreams: Upstreams{Configs: []Upstream{validStaticUpstream}},
 				errMsg:            "",
 			}),
 			Entry("with an invalid static upstream, code is 200", &convertUpstreamsTableInput{
 				upstreamStrings:   []string{invalidStatic},
-				expectedUpstreams: []Upstream{invalidStaticUpstream},
+				expectedUpstreams: Upstreams{Configs: []Upstream{invalidStaticUpstream}},
 				errMsg:            "",
 			}),
 			Entry("with an invalid HTTP upstream", &convertUpstreamsTableInput{
 				upstreamStrings:   []string{invalidHTTP},
-				expectedUpstreams: []Upstream{},
+				expectedUpstreams: Upstreams{},
 				errMsg:            invalidHTTPErrMsg,
 			}),
 			Entry("with an invalid HTTP upstream and other upstreams", &convertUpstreamsTableInput{
 				upstreamStrings:   []string{validHTTP, invalidHTTP},
-				expectedUpstreams: []Upstream{},
+				expectedUpstreams: Upstreams{},
 				errMsg:            invalidHTTPErrMsg,
 			}),
 			Entry("with multiple valid upstreams", &convertUpstreamsTableInput{
 				upstreamStrings:   []string{validHTTP, validFileWithFragment, validStatic},
-				expectedUpstreams: []Upstream{validHTTPUpstream, validFileWithFragmentUpstream, validStaticUpstream},
+				expectedUpstreams: Upstreams{Configs: []Upstream{validHTTPUpstream, validFileWithFragmentUpstream, validStaticUpstream}},
 				errMsg:            "",
 			}),
 		)

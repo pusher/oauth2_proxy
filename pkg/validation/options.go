@@ -169,7 +169,7 @@ func Validate(o *options.Options) error {
 		logger.Print("WARNING: no explicit redirect URL: redirects will default to insecure HTTP")
 	}
 
-	msgs = append(msgs, validateUpstreams(options.Upstreams{Configs: o.UpstreamServers})...)
+	msgs = append(msgs, validateUpstreams(o.UpstreamServers)...)
 	msgs = parseProviderInfo(o, msgs)
 
 	if o.ReverseProxy {

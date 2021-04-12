@@ -48,7 +48,7 @@ type AlphaOptions struct {
 // MergeInto replaces alpha options in the Options struct with the values
 // from the AlphaOptions
 func (a *AlphaOptions) MergeInto(opts *Options) {
-	opts.UpstreamServers = a.Upstreams.Configs
+	opts.UpstreamServers = a.Upstreams
 	opts.InjectRequestHeaders = a.InjectRequestHeaders
 	opts.InjectResponseHeaders = a.InjectResponseHeaders
 	opts.Server = a.Server
@@ -60,7 +60,7 @@ func (a *AlphaOptions) MergeInto(opts *Options) {
 // ExtractFrom populates the fields in the AlphaOptions with the values from
 // the Options
 func (a *AlphaOptions) ExtractFrom(opts *Options) {
-	a.Upstreams.Configs = opts.UpstreamServers
+	a.Upstreams = opts.UpstreamServers
 	a.InjectRequestHeaders = opts.InjectRequestHeaders
 	a.InjectResponseHeaders = opts.InjectResponseHeaders
 	a.Server = opts.Server

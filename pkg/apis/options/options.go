@@ -41,7 +41,7 @@ type Options struct {
 
 	// Not used in the legacy config, name not allowed to match an external key (upstreams)
 	// TODO(JoelSpeed): Rename when legacy config is removed
-	UpstreamServers []Upstream `cfg:",internal"`
+	UpstreamServers Upstreams `cfg:",internal"`
 
 	InjectRequestHeaders  []Header `cfg:",internal"`
 	InjectResponseHeaders []Header `cfg:",internal"`
