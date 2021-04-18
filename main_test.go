@@ -25,6 +25,8 @@ client_secret="b2F1dGgyLXByb3h5LWNsaWVudC1zZWNyZXQK"
 
 	const testAlphaConfig = `
 upstreams:
+  proxyRawPath: false
+  configs:
   - id: /
     path: /
     uri: http://httpbin
@@ -100,13 +102,15 @@ redirect_url="http://localhost:4180/oauth2/callback"
 		opts.RawRedirectURL = "http://localhost:4180/oauth2/callback"
 
 		opts.UpstreamServers = options.Upstreams{
-			{
-				ID:              "/",
-				Path:            "/",
-				URI:             "http://httpbin",
-				FlushInterval:   durationPtr(options.DefaultUpstreamFlushInterval),
-				PassHostHeader:  boolPtr(true),
-				ProxyWebSockets: boolPtr(true),
+			Configs: []options.Upstream{
+				{
+					ID:              "/",
+					Path:            "/",
+					URI:             "http://httpbin",
+					FlushInterval:   durationPtr(options.DefaultUpstreamFlushInterval),
+					PassHostHeader:  boolPtr(true),
+					ProxyWebSockets: boolPtr(true),
+				},
 			},
 		}
 
@@ -228,7 +232,7 @@ redirect_url="http://localhost:4180/oauth2/callback"
 			configContent:      testCoreConfig,
 			alphaConfigContent: testAlphaConfig + ":",
 			expectedOptions:    func() *options.Options { return nil },
-			expectedErr:        errors.New("failed to load alpha options: error unmarshalling config: error converting YAML to JSON: yaml: line 48: did not find expected key"),
+			expectedErr:        errors.New("failed to load alpha options: error unmarshalling config: error converting YAML to JSON: yaml: line 50: did not find expected key"),
 		}),
 		Entry("with alpha configuration and bad core configuration", loadConfigurationTableInput{
 			configContent:      testCoreConfig + "unknown_field=\"something\"",

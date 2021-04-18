@@ -8,10 +8,15 @@ const (
 )
 
 // Upstreams is a collection of definitions for upstream servers.
-type Upstreams []Upstream
+type Upstreams struct {
+	// ProxyRawPath will pass the raw url path to upstream allowing for url's
+	// like: "/%2F/" which would otherwise be redirected to "/"
+	ProxyRawPath bool `json:"proxyRawPath,omitempty"`
 
-// Upstream represents the configuration for an upstream server.
-// Requests will be proxied to this upstream if the path matches the request path.
+	// Upstream represents the configuration for an upstream server.
+	// Requests will be proxied to this upstream if the path matches the request path.
+	Configs []Upstream `json:"configs,omitempty"`
+}
 type Upstream struct {
 	// ID should be a unique identifier for the upstream.
 	// This value is required for all upstreams.

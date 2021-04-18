@@ -15,61 +15,76 @@ import (
 )
 
 var _ = Describe("Proxy Suite", func() {
-	var upstreamServer http.Handler
-
-	BeforeEach(func() {
-		sigData := &options.SignatureData{Hash: crypto.SHA256, Key: "secret"}
-
-		errorHandler := func(rw http.ResponseWriter, _ *http.Request, _ error) {
-			rw.WriteHeader(502)
-			rw.Write([]byte("Proxy Error"))
-		}
-
-		ok := http.StatusOK
-
-		upstreams := options.Upstreams{
-			{
-				ID:   "http-backend",
-				Path: "/http/",
-				URI:  serverAddr,
-			},
-			{
-				ID:   "file-backend",
-				Path: "/files/",
-				URI:  fmt.Sprintf("file:///%s", filesDir),
-			},
-			{
-				ID:         "static-backend",
-				Path:       "/static/",
-				Static:     true,
-				StaticCode: &ok,
-			},
-			{
-				ID:   "bad-http-backend",
-				Path: "/bad-http/",
-				URI:  "http://::1",
-			},
-			{
-				ID:         "single-path-backend",
-				Path:       "/single-path",
-				Static:     true,
-				StaticCode: &ok,
-			},
-		}
-
-		var err error
-		upstreamServer, err = NewProxy(upstreams, sigData, errorHandler)
-		Expect(err).ToNot(HaveOccurred())
-	})
-
 	type proxyTableInput struct {
-		target   string
-		response testHTTPResponse
-		upstream string
+		target    string
+		response  testHTTPResponse
+		upstream  string
+		upstreams options.Upstreams
+	}
+
+	var httpResponse404 = testHTTPResponse{
+		code: 404,
+		header: map[string][]string{
+			"X-Content-Type-Options": {"nosniff"},
+			contentType:              {textPlainUTF8},
+		},
+		raw: "404 page not found\n",
+	}
+	var httpResponse200Authenticated = testHTTPResponse{
+		code:   200,
+		header: map[string][]string{},
+		raw:    "Authenticated",
 	}
 
 	DescribeTable("Proxy ServeHTTP",
 		func(in *proxyTableInput) {
+			sigData := &options.SignatureData{Hash: crypto.SHA256, Key: "secret"}
+
+			errorHandler := func(rw http.ResponseWriter, _ *http.Request, _ error) {
+				rw.WriteHeader(502)
+				rw.Write([]byte("Proxy Error"))
+			}
+
+			ok := http.StatusOK
+
+			// Allows for specifying settings and even individual upstreams for specific tests and uses the default upstreams/configs otherwise
+			upstreams := in.upstreams
+			if len(in.upstreams.Configs) == 0 {
+				upstreams.Configs = []options.Upstream{
+					{
+						ID:   "http-backend",
+						Path: "/http/",
+						URI:  serverAddr,
+					},
+					{
+						ID:   "file-backend",
+						Path: "/files/",
+						URI:  fmt.Sprintf("file:///%s", filesDir),
+					},
+					{
+						ID:         "static-backend",
+						Path:       "/static/",
+						Static:     true,
+						StaticCode: &ok,
+					},
+					{
+						ID:   "bad-http-backend",
+						Path: "/bad-http/",
+						URI:  "http://::1",
+					},
+					{
+						ID:         "single-path-backend",
+						Path:       "/single-path",
+						Static:     true,
+						StaticCode: &ok,
+					},
+				}
+			}
+
+			var err error
+			upstreamServer, err := NewProxy(upstreams, sigData, errorHandler)
+			Expect(err).ToNot(HaveOccurred())
+
 			req := middlewareapi.AddRequestScope(
 				httptest.NewRequest("", in.target, nil),
 				&middlewareapi.RequestScope{},
@@ -135,12 +150,8 @@ var _ = Describe("Proxy Suite", func() {
 			upstream: "file-backend",
 		}),
 		Entry("with a request to the Static backend", &proxyTableInput{
-			target: "http://example.localhost/static/bar",
-			response: testHTTPResponse{
-				code:   200,
-				header: map[string][]string{},
-				raw:    "Authenticated",
-			},
+			target:   "http://example.localhost/static/bar",
+			response: httpResponse200Authenticated,
 			upstream: "static-backend",
 		}),
 		Entry("with a request to the bad HTTP backend", &proxyTableInput{
@@ -154,35 +165,33 @@ var _ = Describe("Proxy Suite", func() {
 			upstream: "bad-http-backend",
 		}),
 		Entry("with a request to the to an unregistered path", &proxyTableInput{
-			target: "http://example.localhost/unregistered",
-			response: testHTTPResponse{
-				code: 404,
-				header: map[string][]string{
-					"X-Content-Type-Options": {"nosniff"},
-					contentType:              {textPlainUTF8},
-				},
-				raw: "404 page not found\n",
-			},
+			target:   "http://example.localhost/unregistered",
+			response: httpResponse404,
 		}),
 		Entry("with a request to the to backend registered to a single path", &proxyTableInput{
-			target: "http://example.localhost/single-path",
-			response: testHTTPResponse{
-				code:   200,
-				header: map[string][]string{},
-				raw:    "Authenticated",
-			},
+			target:   "http://example.localhost/single-path",
+			response: httpResponse200Authenticated,
 			upstream: "single-path-backend",
 		}),
 		Entry("with a request to the to a subpath of a backend registered to a single path", &proxyTableInput{
-			target: "http://example.localhost/single-path/unregistered",
+			target:   "http://example.localhost/single-path/unregistered",
+			response: httpResponse404,
+		}),
+		Entry("with a request to a path containing an escaped '/' in its name", &proxyTableInput{
+			target: "http://example.localhost/%2F/",
 			response: testHTTPResponse{
-				code: 404,
+				code: 301, // Default http mux will rewrite this with an 301
 				header: map[string][]string{
-					"X-Content-Type-Options": {"nosniff"},
-					contentType:              {textPlainUTF8},
+					"Location":  {"http://example.localhost/"},
+					contentType: {htmlPlainUTF8},
 				},
-				raw: "404 page not found\n",
+				raw: "<a href=\"http://example.localhost/\">Moved Permanently</a>.\n\n",
 			},
+		}),
+		Entry("with a request to a path containing an escaped '/' in its name and enabled raw path proxy", &proxyTableInput{
+			upstreams: options.Upstreams{ProxyRawPath: true},
+			target:    "http://example.localhost/%2F/",
+			response:  httpResponse404,
 		}),
 	)
 })
