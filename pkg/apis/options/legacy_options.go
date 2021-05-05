@@ -658,6 +658,11 @@ func (l *LegacyProvider) convert() (Providers, error) {
 			Token: l.GitHubToken,
 			Users: l.GitHubUsers,
 		}
+	case "keycloak-oidc":
+		provider.KeycloakConfig = KeycloakOptions{
+			Groups: l.KeycloakGroups,
+			Roles:  l.AllowedRoles,
+		}
 	case "keycloak":
 		provider.KeycloakConfig = KeycloakOptions{
 			Groups: l.KeycloakGroups,
