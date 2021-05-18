@@ -509,6 +509,10 @@ type LegacyProvider struct {
 	UserIDClaim                        string   `flag:"user-id-claim" cfg:"user_id_claim"`
 	AllowedGroups                      []string `flag:"allowed-group" cfg:"allowed_groups"`
 
+	SkipAudCheckWhenMissing       bool     `flag:"skip-aud-check-when-missing" cfg:"skip_aud_check_when_missing"`
+	AudienceVerificationClaim     string   `flag:"audience-verification-claim" cfg:"audience_verification_claim"`
+	ExtraAudiencesForVerification []string `flag:"extra-audiences-for-verification" cfg:"extra_audiences_for_verification"`
+
 	AcrValues  string `flag:"acr-values" cfg:"acr_values"`
 	JWTKey     string `flag:"jwt-key" cfg:"jwt_key"`
 	JWTKeyFile string `flag:"jwt-key-file" cfg:"jwt_key_file"`
@@ -555,6 +559,10 @@ func legacyProviderFlagSet() *pflag.FlagSet {
 	flagSet.String("scope", "", "OAuth scope specification")
 	flagSet.String("prompt", "", "OIDC prompt")
 	flagSet.String("approval-prompt", "force", "OAuth approval_prompt")
+
+	flagSet.Bool("skip-aud-check-when-missing", false, "Cognito specific setting in order to skip checking aud claim as not present & use clientID claim instead")
+	flagSet.String("audience-verification-claim", "", "Claim where to find audience to verify against client id. Only applies when `skip-aud-check-when-missing` is set.")
+	flagSet.StringSlice("extra-audiences-for-verification", []string{}, "Additional audiences that are allowed to pass verification. Only applies when `skip-aud-check-when-missing` is set.")
 
 	flagSet.String("acr-values", "", "acr values string:  optional")
 	flagSet.String("jwt-key", "", "private key in PEM format used to sign JWT, so that you can say something like -jwt-key=\"${OAUTH2_PROXY_JWT_KEY}\": required by login.gov")
@@ -639,7 +647,9 @@ func (l *LegacyProvider) convert() (Providers, error) {
 		UserIDClaim:                    l.UserIDClaim,
 		EmailClaim:                     l.OIDCEmailClaim,
 		GroupsClaim:                    l.OIDCGroupsClaim,
-		SkipAudCheckWhenMissing:        true,
+		SkipAudCheckWhenMissing:        l.SkipAudCheckWhenMissing,
+		AudienceVerificationClaim:      l.AudienceVerificationClaim,
+		ExtraAudiencesForVerification:  l.ExtraAudiencesForVerification,
 	}
 
 	// This part is out of the switch section because azure has a default tenant
