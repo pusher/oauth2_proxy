@@ -31,7 +31,7 @@ type SessionState struct {
 	User              string   `msgpack:"u,omitempty"`
 	Groups            []string `msgpack:"g,omitempty"`
 	PreferredUsername string   `msgpack:"pu,omitempty"`
-
+	IntrospectClaims  string   `msgpack:"ic,omitempty"`
 	Lock Lock `msgpack:"-"`
 }
 
@@ -128,6 +128,8 @@ func (s *SessionState) GetClaim(claim string) []string {
 		return groups
 	case "preferred_username":
 		return []string{s.PreferredUsername}
+	case "introspect_claims":
+		return []string{s.IntrospectClaims}
 	default:
 		return []string{}
 	}

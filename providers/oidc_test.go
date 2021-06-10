@@ -42,6 +42,10 @@ func newOIDCProvider(serverURL *url.URL) *OIDCProvider {
 			Scheme: serverURL.Scheme,
 			Host:   serverURL.Host,
 			Path:   "/profile"},
+		IntrospectURL: &url.URL{
+			Scheme: serverURL.Scheme,
+			Host:   serverURL.Host,
+			Path:   "/introspect"},
 		ValidateURL: &url.URL{
 			Scheme: serverURL.Scheme,
 			Host:   serverURL.Host,
@@ -61,18 +65,34 @@ func newOIDCProvider(serverURL *url.URL) *OIDCProvider {
 	return p
 }
 
-func newOIDCServer(body []byte) (*url.URL, *httptest.Server) {
-	s := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		rw.Header().Add("content-type", "application/json")
-		_, _ = rw.Write(body)
-	}))
-	u, _ := url.Parse(s.URL)
-	return u, s
+func newOIDCServer(redeemJSON []byte, profileJSON []byte, introspectJSON []byte) *httptest.Server {
+	mux := http.NewServeMux()
+	if len(redeemJSON) > 0 {
+		mux.HandleFunc("/login/oauth/access_token", func(rw http.ResponseWriter, req *http.Request) {
+			rw.Header().Add("content-type", "application/json")
+			_, _ = rw.Write(redeemJSON)
+		})
+	}
+	if len(profileJSON) > 0 {
+		mux.HandleFunc("/profile", func(rw http.ResponseWriter, req *http.Request) {
+			rw.Header().Add("content-type", "application/json")
+			_, _ = rw.Write(profileJSON)
+		})
+	}
+	if len(introspectJSON) > 0 {
+		mux.HandleFunc("/introspect", func(rw http.ResponseWriter, req *http.Request) {
+			rw.Header().Add("content-type", "application/json")
+			_, _ = rw.Write(introspectJSON)
+		})
+	}
+	testserver := httptest.NewServer(mux)
+	return testserver
 }
 
-func newTestOIDCSetup(body []byte) (*httptest.Server, *OIDCProvider) {
-	redeemURL, server := newOIDCServer(body)
-	provider := newOIDCProvider(redeemURL)
+func newTestOIDCSetup(redeemJSON []byte, profileJSON []byte, introspectJSON []byte) (*httptest.Server, *OIDCProvider) {
+	server := newOIDCServer(redeemJSON, profileJSON, introspectJSON)
+	serverURL, _ := url.Parse(server.URL)
+	provider := newOIDCProvider(serverURL)
 	return server, provider
 }
 
@@ -105,8 +125,7 @@ func TestOIDCProviderRedeem(t *testing.T) {
 		RefreshToken: refreshToken,
 		IDToken:      idToken,
 	})
-
-	server, provider := newTestOIDCSetup(body)
+	server, provider := newTestOIDCSetup(body, []byte(`{}`), []byte(`{}`))
 	defer server.Close()
 
 	session, err := provider.Redeem(context.Background(), provider.RedeemURL.String(), "code1234")
@@ -128,7 +147,7 @@ func TestOIDCProviderRedeem_custom_userid(t *testing.T) {
 		IDToken:      idToken,
 	})
 
-	server, provider := newTestOIDCSetup(body)
+	server, provider := newTestOIDCSetup(body, []byte(`{}`), []byte(`{}`))
 	provider.EmailClaim = "phone_number"
 	defer server.Close()
 
@@ -143,6 +162,7 @@ func TestOIDCProvider_EnrichSession(t *testing.T) {
 		EmailClaim      string
 		GroupsClaim     string
 		ProfileJSON     map[string]interface{}
+		IntrospectJSON  map[string]interface{}
 		ExpectedError   error
 		ExpectedSession *sessions.SessionState
 	}{
@@ -161,14 +181,18 @@ func TestOIDCProvider_EnrichSession(t *testing.T) {
 				"email":  "new@thing.com",
 				"groups": []string{"new", "thing"},
 			},
+			IntrospectJSON: map[string]interface{}{
+				"active": true,
+			},
 			ExpectedError: nil,
 			ExpectedSession: &sessions.SessionState{
-				User:         "already",
-				Email:        "already@populated.com",
-				Groups:       []string{"already", "populated"},
-				IDToken:      idToken,
-				AccessToken:  accessToken,
-				RefreshToken: refreshToken,
+				User:             "already",
+				Email:            "already@populated.com",
+				Groups:           []string{"already", "populated"},
+				IDToken:          idToken,
+				AccessToken:      accessToken,
+				RefreshToken:     refreshToken,
+				IntrospectClaims: "eyJhY3RpdmUiOnRydWV9",
 			},
 		},
 		"Missing Email": {
@@ -185,14 +209,18 @@ func TestOIDCProvider_EnrichSession(t *testing.T) {
 				"email":  "found@email.com",
 				"groups": []string{"new", "thing"},
 			},
+			IntrospectJSON: map[string]interface{}{
+				"active": true,
+			},
 			ExpectedError: nil,
 			ExpectedSession: &sessions.SessionState{
-				User:         "missing.email",
-				Email:        "found@email.com",
-				Groups:       []string{"already", "populated"},
-				IDToken:      idToken,
-				AccessToken:  accessToken,
-				RefreshToken: refreshToken,
+				User:             "missing.email",
+				Email:            "found@email.com",
+				Groups:           []string{"already", "populated"},
+				IDToken:          idToken,
+				AccessToken:      accessToken,
+				RefreshToken:     refreshToken,
+				IntrospectClaims: "eyJhY3RpdmUiOnRydWV9",
 			},
 		},
 
@@ -208,13 +236,17 @@ func TestOIDCProvider_EnrichSession(t *testing.T) {
 			ProfileJSON: map[string]interface{}{
 				"email": "found@email.com",
 			},
+			IntrospectJSON: map[string]interface{}{
+				"active": true,
+			},
 			ExpectedError: nil,
 			ExpectedSession: &sessions.SessionState{
-				User:         "missing.email",
-				Email:        "found@email.com",
-				IDToken:      idToken,
-				AccessToken:  accessToken,
-				RefreshToken: refreshToken,
+				User:             "missing.email",
+				Email:            "found@email.com",
+				IDToken:          idToken,
+				AccessToken:      accessToken,
+				RefreshToken:     refreshToken,
+				IntrospectClaims: "eyJhY3RpdmUiOnRydWV9",
 			},
 		},
 		"Missing Email with Custom Claim": {
@@ -231,14 +263,18 @@ func TestOIDCProvider_EnrichSession(t *testing.T) {
 				"weird":  "weird@claim.com",
 				"groups": []string{"new", "thing"},
 			},
+			IntrospectJSON: map[string]interface{}{
+				"active": true,
+			},
 			ExpectedError: nil,
 			ExpectedSession: &sessions.SessionState{
-				User:         "missing.email",
-				Email:        "weird@claim.com",
-				Groups:       []string{"already", "populated"},
-				IDToken:      idToken,
-				AccessToken:  accessToken,
-				RefreshToken: refreshToken,
+				User:             "missing.email",
+				Email:            "weird@claim.com",
+				Groups:           []string{"already", "populated"},
+				IDToken:          idToken,
+				AccessToken:      accessToken,
+				RefreshToken:     refreshToken,
+				IntrospectClaims: "eyJhY3RpdmUiOnRydWV9",
 			},
 		},
 		"Missing Email not in Profile URL": {
@@ -254,13 +290,17 @@ func TestOIDCProvider_EnrichSession(t *testing.T) {
 			ProfileJSON: map[string]interface{}{
 				"groups": []string{"new", "thing"},
 			},
+			IntrospectJSON: map[string]interface{}{
+				"active": true,
+			},
 			ExpectedError: errors.New("neither the id_token nor the profileURL set an email"),
 			ExpectedSession: &sessions.SessionState{
-				User:         "missing.email",
-				Groups:       []string{"already", "populated"},
-				IDToken:      idToken,
-				AccessToken:  accessToken,
-				RefreshToken: refreshToken,
+				User:             "missing.email",
+				Groups:           []string{"already", "populated"},
+				IDToken:          idToken,
+				AccessToken:      accessToken,
+				RefreshToken:     refreshToken,
+				IntrospectClaims: "eyJhY3RpdmUiOnRydWV9",
 			},
 		},
 		"Missing Groups": {
@@ -278,14 +318,18 @@ func TestOIDCProvider_EnrichSession(t *testing.T) {
 				"email":  "new@thing.com",
 				"groups": []string{"new", "thing"},
 			},
+			IntrospectJSON: map[string]interface{}{
+				"active": true,
+			},
 			ExpectedError: nil,
 			ExpectedSession: &sessions.SessionState{
-				User:         "already",
-				Email:        "already@populated.com",
-				Groups:       []string{"new", "thing"},
-				IDToken:      idToken,
-				AccessToken:  accessToken,
-				RefreshToken: refreshToken,
+				User:             "already",
+				Email:            "already@populated.com",
+				Groups:           []string{"new", "thing"},
+				IDToken:          idToken,
+				AccessToken:      accessToken,
+				RefreshToken:     refreshToken,
+				IntrospectClaims: "eyJhY3RpdmUiOnRydWV9",
 			},
 		},
 		"Missing Groups with Complex Groups in Profile URL": {
@@ -308,14 +352,18 @@ func TestOIDCProvider_EnrichSession(t *testing.T) {
 					},
 				},
 			},
+			IntrospectJSON: map[string]interface{}{
+				"active": true,
+			},
 			ExpectedError: nil,
 			ExpectedSession: &sessions.SessionState{
-				User:         "already",
-				Email:        "already@populated.com",
-				Groups:       []string{"{\"groupId\":\"Admin Group Id\",\"roles\":[\"Admin\"]}"},
-				IDToken:      idToken,
-				AccessToken:  accessToken,
-				RefreshToken: refreshToken,
+				User:             "already",
+				Email:            "already@populated.com",
+				Groups:           []string{"{\"groupId\":\"Admin Group Id\",\"roles\":[\"Admin\"]}"},
+				IDToken:          idToken,
+				AccessToken:      accessToken,
+				RefreshToken:     refreshToken,
+				IntrospectClaims: "eyJhY3RpdmUiOnRydWV9",
 			},
 		},
 		"Missing Groups with Singleton Complex Group in Profile URL": {
@@ -336,14 +384,18 @@ func TestOIDCProvider_EnrichSession(t *testing.T) {
 					"roles":   []string{"Admin"},
 				},
 			},
+			IntrospectJSON: map[string]interface{}{
+				"active": true,
+			},
 			ExpectedError: nil,
 			ExpectedSession: &sessions.SessionState{
-				User:         "already",
-				Email:        "already@populated.com",
-				Groups:       []string{"{\"groupId\":\"Admin Group Id\",\"roles\":[\"Admin\"]}"},
-				IDToken:      idToken,
-				AccessToken:  accessToken,
-				RefreshToken: refreshToken,
+				User:             "already",
+				Email:            "already@populated.com",
+				Groups:           []string{"{\"groupId\":\"Admin Group Id\",\"roles\":[\"Admin\"]}"},
+				IDToken:          idToken,
+				AccessToken:      accessToken,
+				RefreshToken:     refreshToken,
+				IntrospectClaims: "eyJhY3RpdmUiOnRydWV9",
 			},
 		},
 		"Empty Groups Claims": {
@@ -361,14 +413,18 @@ func TestOIDCProvider_EnrichSession(t *testing.T) {
 				"email":  "new@thing.com",
 				"groups": []string{"new", "thing"},
 			},
+			IntrospectJSON: map[string]interface{}{
+				"active": true,
+			},
 			ExpectedError: nil,
 			ExpectedSession: &sessions.SessionState{
-				User:         "already",
-				Email:        "already@populated.com",
-				Groups:       []string{},
-				IDToken:      idToken,
-				AccessToken:  accessToken,
-				RefreshToken: refreshToken,
+				User:             "already",
+				Email:            "already@populated.com",
+				Groups:           []string{},
+				IDToken:          idToken,
+				AccessToken:      accessToken,
+				RefreshToken:     refreshToken,
+				IntrospectClaims: "eyJhY3RpdmUiOnRydWV9",
 			},
 		},
 		"Missing Groups with Custom Claim": {
@@ -386,14 +442,18 @@ func TestOIDCProvider_EnrichSession(t *testing.T) {
 				"email": "new@thing.com",
 				"roles": []string{"new", "thing", "roles"},
 			},
+			IntrospectJSON: map[string]interface{}{
+				"active": true,
+			},
 			ExpectedError: nil,
 			ExpectedSession: &sessions.SessionState{
-				User:         "already",
-				Email:        "already@populated.com",
-				Groups:       []string{"new", "thing", "roles"},
-				IDToken:      idToken,
-				AccessToken:  accessToken,
-				RefreshToken: refreshToken,
+				User:             "already",
+				Email:            "already@populated.com",
+				Groups:           []string{"new", "thing", "roles"},
+				IDToken:          idToken,
+				AccessToken:      accessToken,
+				RefreshToken:     refreshToken,
+				IntrospectClaims: "eyJhY3RpdmUiOnRydWV9",
 			},
 		},
 		"Missing Groups String Profile URL Response": {
@@ -411,14 +471,18 @@ func TestOIDCProvider_EnrichSession(t *testing.T) {
 				"email":  "new@thing.com",
 				"groups": "singleton",
 			},
+			IntrospectJSON: map[string]interface{}{
+				"active": true,
+			},
 			ExpectedError: nil,
 			ExpectedSession: &sessions.SessionState{
-				User:         "already",
-				Email:        "already@populated.com",
-				Groups:       []string{"singleton"},
-				IDToken:      idToken,
-				AccessToken:  accessToken,
-				RefreshToken: refreshToken,
+				User:             "already",
+				Email:            "already@populated.com",
+				Groups:           []string{"singleton"},
+				IDToken:          idToken,
+				AccessToken:      accessToken,
+				RefreshToken:     refreshToken,
+				IntrospectClaims: "eyJhY3RpdmUiOnRydWV9",
 			},
 		},
 		"Missing Groups in both Claims and Profile URL": {
@@ -434,23 +498,90 @@ func TestOIDCProvider_EnrichSession(t *testing.T) {
 			ProfileJSON: map[string]interface{}{
 				"email": "new@thing.com",
 			},
+			IntrospectJSON: map[string]interface{}{
+				"active": true,
+			},
 			ExpectedError: nil,
 			ExpectedSession: &sessions.SessionState{
+				User:             "already",
+				Email:            "already@populated.com",
+				IDToken:          idToken,
+				AccessToken:      accessToken,
+				RefreshToken:     refreshToken,
+				IntrospectClaims: "eyJhY3RpdmUiOnRydWV9",
+			},
+		},
+		"Introspection Response added in session": {
+			ExistingSession: &sessions.SessionState{
 				User:         "already",
 				Email:        "already@populated.com",
 				IDToken:      idToken,
 				AccessToken:  accessToken,
 				RefreshToken: refreshToken,
 			},
+			EmailClaim:  "email",
+			GroupsClaim: "groups",
+			ProfileJSON: map[string]interface{}{
+				"email": "new@thing.com",
+			},
+			IntrospectJSON: map[string]interface{}{
+				"active":   true,
+				"scope":    "openid profile email",
+				"username": "red.rush@invincible.com",
+				"exp":      1620821880,
+				"sub":      "a9dcb37f-a5b5-4304-b334-aa72865ebacf",
+				"iss":      "https://dev.authprovider.com/oauth2/default",
+				"organizations": map[string]interface{}{
+					"managingOrganization": "9e99787d-ee6a-4ece-83e7-065da45c77eb",
+					"organizationList": [](map[string]interface{}){
+						{
+							"organizationId": "a7f6fa08-4aba-4b19-844f-3d3bb9eb721d",
+							"permissions": []string{
+								"CLIENT.READ",
+								"CP-CONFIG.BUNDLE_READ",
+								"CP-CONFIG.READ",
+							},
+							"organizationName": "org1",
+							"groups": []string{
+								"admin",
+							},
+							"roles": []string{
+								"adminaccess",
+							},
+						},
+						{
+							"organizationId": "c7c7970d-21a7-450b-9557-5fa2080f3ff4",
+							"permissions": []string{
+								"CLIENT.WRITE",
+								"EMAILTEMPLATE.DELETE",
+							},
+							"organizationName": "org2",
+						},
+					}},
+				"client_id":     "oidcclient1",
+				"token_type":    "Bearer",
+				"identity_type": "user",
+			},
+			ExpectedError: nil,
+			ExpectedSession: &sessions.SessionState{
+				User:             "already",
+				Email:            "already@populated.com",
+				IDToken:          idToken,
+				AccessToken:      accessToken,
+				RefreshToken:     refreshToken,
+				IntrospectClaims: "eyJhY3RpdmUiOnRydWUsImNsaWVudF9pZCI6Im9pZGNjbGllbnQxIiwiZXhwIjoxNjIwODIxODgwLCJpZGVudGl0eV90eXBlIjoidXNlciIsImlzcyI6Imh0dHBzOi8vZGV2LmF1dGhwcm92aWRlci5jb20vb2F1dGgyL2RlZmF1bHQiLCJvcmdhbml6YXRpb25zIjp7Im1hbmFnaW5nT3JnYW5pemF0aW9uIjoiOWU5OTc4N2QtZWU2YS00ZWNlLTgzZTctMDY1ZGE0NWM3N2ViIiwib3JnYW5pemF0aW9uTGlzdCI6W3siZ3JvdXBzIjpbImFkbWluIl0sIm9yZ2FuaXphdGlvbklkIjoiYTdmNmZhMDgtNGFiYS00YjE5LTg0NGYtM2QzYmI5ZWI3MjFkIiwib3JnYW5pemF0aW9uTmFtZSI6Im9yZzEiLCJwZXJtaXNzaW9ucyI6WyJDTElFTlQuUkVBRCIsIkNQLUNPTkZJRy5CVU5ETEVfUkVBRCIsIkNQLUNPTkZJRy5SRUFEIl0sInJvbGVzIjpbImFkbWluYWNjZXNzIl19LHsib3JnYW5pemF0aW9uSWQiOiJjN2M3OTcwZC0yMWE3LTQ1MGItOTU1Ny01ZmEyMDgwZjNmZjQiLCJvcmdhbml6YXRpb25OYW1lIjoib3JnMiIsInBlcm1pc3Npb25zIjpbIkNMSUVOVC5XUklURSIsIkVNQUlMVEVNUExBVEUuREVMRVRFIl19XX0sInNjb3BlIjoib3BlbmlkIHByb2ZpbGUgZW1haWwiLCJzdWIiOiJhOWRjYjM3Zi1hNWI1LTQzMDQtYjMzNC1hYTcyODY1ZWJhY2YiLCJ0b2tlbl90eXBlIjoiQmVhcmVyIiwidXNlcm5hbWUiOiJyZWQucnVzaEBpbnZpbmNpYmxlLmNvbSJ9",
+			},
 		},
 	}
 	for testName, tc := range testCases {
 		t.Run(testName, func(t *testing.T) {
-			jsonResp, err := json.Marshal(tc.ProfileJSON)
+			profileJSON, err := json.Marshal(tc.ProfileJSON)
 			assert.NoError(t, err)
 
-			server, provider := newTestOIDCSetup(jsonResp)
-			provider.ProfileURL, err = url.Parse(server.URL)
+			introspectJSON, err := json.Marshal(tc.IntrospectJSON)
+			assert.NoError(t, err)
+
+			server, provider := newTestOIDCSetup([]byte(`{}`), profileJSON, introspectJSON)
 			assert.NoError(t, err)
 
 			provider.EmailClaim = tc.EmailClaim
@@ -474,7 +605,7 @@ func TestOIDCProviderRefreshSessionIfNeededWithoutIdToken(t *testing.T) {
 		RefreshToken: refreshToken,
 	})
 
-	server, provider := newTestOIDCSetup(body)
+	server, provider := newTestOIDCSetup(body, []byte(`{}`), []byte(`{}`))
 	defer server.Close()
 
 	existingSession := &sessions.SessionState{
@@ -508,7 +639,7 @@ func TestOIDCProviderRefreshSessionIfNeededWithIdToken(t *testing.T) {
 		IDToken:      idToken,
 	})
 
-	server, provider := newTestOIDCSetup(body)
+	server, provider := newTestOIDCSetup(body, []byte(`{}`), []byte(`{}`))
 	defer server.Close()
 
 	existingSession := &sessions.SessionState{
@@ -569,7 +700,7 @@ func TestOIDCProviderCreateSessionFromToken(t *testing.T) {
 	}
 	for testName, tc := range testCases {
 		t.Run(testName, func(t *testing.T) {
-			server, provider := newTestOIDCSetup([]byte(`{}`))
+			server, provider := newTestOIDCSetup([]byte(`{}`), []byte(`{}`), []byte(`{}`))
 			provider.GroupsClaim = tc.GroupsClaim
 			defer server.Close()
 

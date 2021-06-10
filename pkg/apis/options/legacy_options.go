@@ -181,9 +181,10 @@ type LegacyHeaders struct {
 	PassUserHeaders   bool `flag:"pass-user-headers" cfg:"pass_user_headers"`
 	PassAuthorization bool `flag:"pass-authorization-header" cfg:"pass_authorization_header"`
 
-	SetBasicAuth     bool `flag:"set-basic-auth" cfg:"set_basic_auth"`
-	SetXAuthRequest  bool `flag:"set-xauthrequest" cfg:"set_xauthrequest"`
-	SetAuthorization bool `flag:"set-authorization-header" cfg:"set_authorization_header"`
+	SetBasicAuth          bool `flag:"set-basic-auth" cfg:"set_basic_auth"`
+	SetXAuthRequest       bool `flag:"set-xauthrequest" cfg:"set_xauthrequest"`
+	SetAuthorization      bool `flag:"set-authorization-header" cfg:"set_authorization_header"`
+	SetIntrospectionValue bool `flag:"set-introspection-value" cfg:"set_introspection_value"`
 
 	PreferEmailToUser    bool   `flag:"prefer-email-to-user" cfg:"prefer_email_to_user"`
 	BasicAuthPassword    string `flag:"basic-auth-password" cfg:"basic_auth_password"`
@@ -201,6 +202,7 @@ func legacyHeadersFlagSet() *pflag.FlagSet {
 	flagSet.Bool("set-basic-auth", false, "set HTTP Basic Auth information in response (useful in Nginx auth_request mode)")
 	flagSet.Bool("set-xauthrequest", false, "set X-Auth-Request-User and X-Auth-Request-Email response headers (useful in Nginx auth_request mode)")
 	flagSet.Bool("set-authorization-header", false, "set Authorization response headers (useful in Nginx auth_request mode)")
+	flagSet.Bool("set-introspection-value", false, "set the Introspect claims in the response headers via X-Auth-Introspect-Value")
 
 	flagSet.Bool("prefer-email-to-user", false, "Prefer to use the Email address as the Username when passing information to upstream. Will only use Username if Email is unavailable, eg. htaccess authentication. Used in conjunction with -pass-basic-auth and -pass-user-headers")
 	flagSet.String("basic-auth-password", "", "the password to set when passing the HTTP Basic Auth header")
@@ -261,6 +263,9 @@ func (l *LegacyHeaders) getResponseHeaders() []Header {
 		responseHeaders = append(responseHeaders, getAuthorizationHeader())
 	}
 
+	if l.SetIntrospectionValue {
+		responseHeaders = append(responseHeaders, getXAuthIntrospectionValueHeaders())
+	}
 	return responseHeaders
 }
 
@@ -439,6 +444,19 @@ func getXAuthRequestAccessTokenHeader() Header {
 	}
 }
 
+func getXAuthIntrospectionValueHeaders() Header {
+	return Header{
+		Name: "X-Auth-Introspect-Value",
+		Values: []HeaderValue{
+			{
+				ClaimSource: &ClaimSource{
+					Claim: "introspect_claims",
+				},
+			},
+		},
+	}
+}
+
 type LegacyServer struct {
 	MetricsAddress       string `flag:"metrics-address" cfg:"metrics_address"`
 	MetricsSecureAddress string `flag:"metrics-secure-address" cfg:"metrics_secure_address"`
@@ -501,6 +519,7 @@ type LegacyProvider struct {
 	LoginURL                           string   `flag:"login-url" cfg:"login_url"`
 	RedeemURL                          string   `flag:"redeem-url" cfg:"redeem_url"`
 	ProfileURL                         string   `flag:"profile-url" cfg:"profile_url"`
+	IntrospectURL                      string   `flag:"introspect-url" cfg:"introspect_url"`
 	ProtectedResource                  string   `flag:"resource" cfg:"resource"`
 	ValidateURL                        string   `flag:"validate-url" cfg:"validate_url"`
 	Scope                              string   `flag:"scope" cfg:"scope"`
@@ -550,6 +569,7 @@ func legacyProviderFlagSet() *pflag.FlagSet {
 	flagSet.String("login-url", "", "Authentication endpoint")
 	flagSet.String("redeem-url", "", "Token redemption endpoint")
 	flagSet.String("profile-url", "", "Profile access endpoint")
+	flagSet.String("introspect-url", "", "Introspect claims access endpoint")
 	flagSet.String("resource", "", "The resource that is protected (Azure AD only)")
 	flagSet.String("validate-url", "", "Access token validation endpoint")
 	flagSet.String("scope", "", "OAuth scope specification")
@@ -619,6 +639,7 @@ func (l *LegacyProvider) convert() (Providers, error) {
 		LoginURL:          l.LoginURL,
 		RedeemURL:         l.RedeemURL,
 		ProfileURL:        l.ProfileURL,
+		IntrospectURL:     l.IntrospectURL,
 		ProtectedResource: l.ProtectedResource,
 		ValidateURL:       l.ValidateURL,
 		Scope:             l.Scope,
