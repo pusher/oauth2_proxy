@@ -45,7 +45,6 @@ type ProviderData struct {
 	AllowUnverifiedEmail bool
 	EmailClaim           string
 	GroupsClaim          string
-	AudienceClaim        string
 	Verifier             *internaloidc.IDTokenVerifier
 
 	// Universal Group authorization data structure
