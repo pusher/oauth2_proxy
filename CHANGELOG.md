@@ -11,7 +11,12 @@
 
 ## Breaking Changes
 
+- [#1239](https://github.com/oauth2-proxy/oauth2-proxy/pull/1239) GitLab groups sent in the `X-Forwarded-Groups` header
+  to the upstream server will no longer be prefixed with `group:`
+
 ## Changes since v7.1.3
+
+- [#1239](https://github.com/oauth2-proxy/oauth2-proxy/pull/1239) Base GitLab provider implementation on OIDCProvider (@NickMeves)
 - [#1233](https://github.com/oauth2-proxy/oauth2-proxy/pull/1233) Extend email-domain validation with sub-domain capability (@morarucostel)
 - [#1060](https://github.com/oauth2-proxy/oauth2-proxy/pull/1060) Implement RewriteTarget to allow requests to be rewritten before proxying to upstream servers (@JoelSpeed)
 - [#1086](https://github.com/oauth2-proxy/oauth2-proxy/pull/1086) Refresh sessions before token expiration if configured (@NickMeves)
