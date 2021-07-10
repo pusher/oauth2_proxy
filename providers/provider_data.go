@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	internaloidc "github.com/oauth2-proxy/oauth2-proxy/v7/pkg/oidc"
 	"io/ioutil"
 	"net/url"
 	"reflect"
@@ -16,8 +17,9 @@ import (
 )
 
 const (
-	OIDCEmailClaim  = "email"
-	OIDCGroupsClaim = "groups"
+	OIDCEmailClaim    = "email"
+	OIDCGroupsClaim   = "groups"
+	OIDCAudienceClaim = "aud"
 )
 
 // ProviderData contains information required to configure all implementations
@@ -43,7 +45,7 @@ type ProviderData struct {
 	AllowUnverifiedEmail bool
 	EmailClaim           string
 	GroupsClaim          string
-	Verifier             *oidc.IDTokenVerifier
+	Verifier             *internaloidc.IDTokenVerifier
 
 	// Universal Group authorization data structure
 	// any provider can set to consume

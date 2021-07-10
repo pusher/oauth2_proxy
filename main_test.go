@@ -72,6 +72,8 @@ providers:
     emailClaim: email
     userIDClaim: email
     insecureSkipNonce: true
+    audienceClaim: aud
+    extraAudiences: []
 `
 
 	const testCoreConfig = `
@@ -142,6 +144,8 @@ redirect_url="http://localhost:4180/oauth2/callback"
 					GroupsClaim:       "groups",
 					EmailClaim:        "email",
 					UserIDClaim:       "email",
+					AudienceClaim:     "aud",
+					ExtraAudiences:    []string{},
 					InsecureSkipNonce: true,
 				},
 				ApprovalPrompt: "force",
@@ -230,7 +234,7 @@ redirect_url="http://localhost:4180/oauth2/callback"
 			configContent:      testCoreConfig,
 			alphaConfigContent: testAlphaConfig + ":",
 			expectedOptions:    func() *options.Options { return nil },
-			expectedErr:        errors.New("failed to load alpha options: error unmarshalling config: error converting YAML to JSON: yaml: line 49: did not find expected key"),
+			expectedErr:        errors.New("failed to load alpha options: error unmarshalling config: error converting YAML to JSON: yaml: line 51: did not find expected key"),
 		}),
 		Entry("with alpha configuration and bad core configuration", loadConfigurationTableInput{
 			configContent:      testCoreConfig + "unknown_field=\"something\"",
